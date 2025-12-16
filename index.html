@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Q&A Moderator Dashboard</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* (styles unchanged — keep your original CSS) */
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif; background:#f5f5f5; color:#333; line-height:1.6; }
+        .container { max-width:1200px; margin:0 auto; padding:20px; }
+        header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color:white; padding:2rem; border-radius:10px; margin-bottom:2rem; box-shadow:0 4px 6px rgba(0,0,0,0.1); }
+        h1 { font-size:2.5rem; margin-bottom:0.5rem; }
+        .stats{ display:flex; gap:15px; flex-wrap:wrap; margin-top:1.5rem; }
+        .stat-card{ background: rgba(255,255,255,0.2); padding:15px; border-radius:8px; min-width:140px; backdrop-filter: blur(10px); flex:1; }
+        .stat-value{ font-size:2rem; font-weight:bold; margin-bottom:5px; }
+        .stat-label{ font-size:0.9rem; opacity:0.9; }
+        .filters{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:2rem; padding:15px; background:white; border-radius:10px; box-shadow:0 2px 5px rgba(0,0,0,0.05); }
+        .filter-btn{ padding:10px 20px; border:none; border-radius:25px; cursor:pointer; font-weight:600; transition:all 0.3s ease; font-size:0.9rem; }
+        .filter-btn.active{ transform: translateY(-2px); box-shadow:0 4px 12px rgba(0,0,0,0.15); }
+        .status-new{ background:#3b82f6; color:white; } .status-read{ background:#10b981; color:white; } .status-selected{ background:#f59e0b; color:white; } .status-all{ background:#6b7280; color:white; }
+        .questions-container{ display:grid; grid-template-columns:repeat(auto-fill, minmax(350px, 1fr)); gap:20px; }
+        .question-card{ background:white; border-radius:10px; padding:20px; box-shadow:0 2px 10px rgba(0,0,0,0.08); transition:transform 0.3s ease, box-shadow 0.3s ease; border-left:5px solid #3b82f6; display:flex; flex-direction:column; }
+        .question-card:hover{ transform: translateY(-5px); box-shadow:0 5px 20px rgba(0,0,0,0.15); }
+        .question-card.new{ border-left-color:#3b82f6; } .question-card.read{ border-left-color:#10b981; } .question-card.selected{ border-left-color:#f59e0b; }
+        .question-header{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:15px; flex-wrap:wrap; gap:10px; }
+        .user-info{ display:flex; align-items:center; gap:10px; flex:1; min-width:200px; }
+        .avatar{ width:40px; height:40px; background:linear-gradient(135deg,#667eea,#764ba2); border-radius:50%; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold; flex-shrink:0; }
+        .user-details{ flex:1; } .user-name{ font-weight:bold; font-size:1.1rem; margin-bottom:3px; } .tanzeem{ background:#e0e7ff; color:#3730a3; padding:3px 10px; border-radius:12px; font-size:0.8rem; font-weight:600; display:inline-block; margin-top:5px; } .timestamp{ color:#6b7280; font-size:0.85rem; margin-top:5px; }
+        .question-content{ font-size:1.1rem; margin:15px 0; line-height:1.5; flex:1; padding:15px; background:#f8fafc; border-radius:8px; border-left:3px solid #cbd5e1; }
+        .status-badge{ display:inline-block; padding:5px 15px; border-radius:20px; font-size:0.85rem; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; white-space:nowrap; }
+        .badge-new{ background:#dbeafe; color:#1e40af; } .badge-read{ background:#d1fae5; color:#065f46; } .badge-selected{ background:#fef3c7; color:#92400e; }
+        .actions{ display:flex; gap:10px; margin-top:20px; flex-wrap:wrap; }
+        .action-btn{ padding:8px 16px; border:none; border-radius:5px; cursor:pointer; font-weight:600; transition:all 0.2s ease; flex:1; min-width:80px; font-size:0.9rem; display:flex; align-items:center; justify-content:center; gap:5px; }
+        .action-btn:hover{ opacity:0.9; transform: translateY(-1px); } .btn-new{ background:#3b82f6; color:white; } .btn-read{ background:#10b981; color:white; } .btn-selected{ background:#f59e0b; color:white; }
+        .refresh-btn{ position:fixed; bottom:30px; right:30px; background:linear-gradient(135deg,#667eea,#764ba2); color:white; border:none; width:60px; height:60px; border-radius:50%; cursor:pointer; font-size:1.5rem; box-shadow:0 4px 15px rgba(0,0,0,0.2); transition:all 0.3s ease; z-index:100; }
+        .refresh-btn:hover{ transform: rotate(30deg) scale(1.1); }
+        @media (max-width:768px){ .container{ padding:10px; } .questions-container{ grid-template-columns:1fr; } .filters{ justify-content:center; } h1{ font-size:2rem; } .stat-card{ min-width:calc(50% - 15px); } .user-info{ min-width:100%; } }
+        .loading{ text-align:center; padding:40px; font-size:1.2rem; color:#6b7280; grid-column:1 / -1; }
+        .empty-state{ text-align:center; padding:60px 20px; color:#6b7280; grid-column:1 / -1; background:white; border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,0.08); }
+        .search-bar{ margin-bottom:20px; } .search-input{ width:100%; padding:15px; border:2px solid #e5e7eb; border-radius:10px; font-size:1rem; transition:border-color 0.3s ease; } .search-input:focus{ outline:none; border-color:#667eea; }
+        .question-id{ font-size:0.8rem; color:#9ca3af; font-family:monospace; margin-top:10px; text-align:right; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><i class="fas fa-comments"></i> Q&A Moderator Dashboard</h1>
+            <p>Manage questions submitted by attendees with Tanzeem information</p>
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-value" id="total-questions">0</div>
+                    <div class="stat-label">Total Questions</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="new-questions">0</div>
+                    <div class="stat-label">New</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="read-questions">0</div>
+                    <div class="stat-label">Read</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="selected-questions">0</div>
+                    <div class="stat-label">Selected</div>
+                </div>
+            </div>
+        </header>
+
+        <div class="search-bar">
+            <input type="text" class="search-input" id="search-input" placeholder="Search questions, names, or tanzeem..." onkeyup="searchQuestions()">
+        </div>
+
+        <div class="filters" id="filter-buttons">
+             <button class="filter-btn status-all active" data-status="all">All Questions</button>
+             <button class="filter-btn status-new" data-status="New">New</button>
+             <button class="filter-btn status-read" data-status="Read">Read</button>
+             <button class="filter-btn status-selected" data-status="Selected">Selected</button>
+        </div>
+
+        <div class="questions-container" id="questions-container">
+            <div class="loading">
+                <i class="fas fa-spinner fa-spin"></i> Loading questions...
+            </div>
+        </div>
+    </div>
+
+    <!-- removed inline onclick here (was onclick="loadQuestions()") -->
+    <button class="refresh-btn" title="Refresh Questions">
+        <i class="fas fa-sync-alt"></i>
+    </button>
+
+    <script>
+    // Helper Functions
+    function getInitials(name) {
+        if (!name || name === 'Anonymous') return '?';
+        return name.split(' ').map(n => n[0]).join('').toUpperCase().substr(0, 2);
+    }
+
+    function getStatusIcon(status) {
+        switch(status) {
+            case 'New': return 'fa-clock';
+            case 'Read': return 'fa-check';
+            case 'Selected': return 'fa-star';
+            default: return 'fa-question';
+        }
+    }
+
+    function formatTimestamp(timestamp) {
+        if (!timestamp) return 'Just now';
+        const date = new Date(timestamp);
+        if (isNaN(date.getTime())) return timestamp;
+        const now = new Date();
+        const diffMs = now - date;
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMs / 3600000);
+        if (diffMins < 1) return 'Just now';
+        if (diffMins < 60) return `${diffMins} min ago`;
+        if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Main functions
+    function updateStats() {
+        const total = allQuestions.length;
+        const newCount = allQuestions.filter(q => q.Status === 'New').length;
+        const readCount = allQuestions.filter(q => q.Status === 'Read').length;
+        const selectedCount = allQuestions.filter(q => q.Status === 'Selected').length;
+        document.getElementById('total-questions').textContent = total;
+        document.getElementById('new-questions').textContent = newCount;
+        document.getElementById('read-questions').textContent = readCount;
+        document.getElementById('selected-questions').textContent = selectedCount;
+    }
+
+    function renderQuestions(questions) {
+        const container = document.getElementById('questions-container');
+        if (!questions || questions.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-inbox fa-3x"></i>
+                    <h3>No questions found</h3>
+                    <p>${currentFilter === 'all' ? 'No questions have been submitted yet.' : `No questions with status "${currentFilter}"`}</p>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = questions.map(question => `
+            <div class="question-card ${question.Status.toLowerCase()}">
+                <div class="question-header">
+                    <div class="user-info">
+                        <div class="avatar">${getInitials(question.Name)}</div>
+                        <div class="user-details">
+                            <div class="user-name">${escapeHtml(question.Name)}</div>
+                            <div class="tanzeem">${escapeHtml(question.Tanzeem)}</div>
+                            <div class="timestamp">${formatTimestamp(question.Timestamp)}</div>
+                        </div>
+                    </div>
+                    <span class="status-badge badge-${question.Status.toLowerCase()}">
+                        <i class="fas ${getStatusIcon(question.Status)}"></i> ${question.Status}
+                    </span>
+                </div>
+
+                <div class="question-content">
+                    ${escapeHtml(question.Question)}
+                </div>
+
+                <div class="actions">
+                    <button class="action-btn btn-new" onclick="updateStatus('${question.ID}', 'New')" ${question.Status === 'New' ? 'disabled style="opacity:0.5"' : ''}>
+                        <i class="fas fa-circle"></i> Mark New
+                    </button>
+                    <button class="action-btn btn-read" onclick="updateStatus('${question.ID}', 'Read')" ${question.Status === 'Read' ? 'disabled style="opacity:0.5"' : ''}>
+                        <i class="fas fa-check-circle"></i> Mark Read
+                    </button>
+                    <button class="action-btn btn-selected" onclick="updateStatus('${question.ID}', 'Selected')" ${question.Status === 'Selected' ? 'disabled style="opacity:0.5"' : ''}>
+                        <i class="fas fa-star"></i> Select
+                    </button>
+                </div>
+
+                <div class="question-id">ID: ${question.ID}</div>
+            </div>
+        `).join('');
+    }
+
+    function filterQuestions(status, clickedElement = null) {
+        currentFilter = status;
+        document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+        if (clickedElement) clickedElement.classList.add('active'); 
+        else {
+            const buttonToActivate = document.querySelector(`.filter-btn[data-status="${status}"]`);
+            if (buttonToActivate) buttonToActivate.classList.add('active');
+        }
+
+        const filteredQuestions = status === 'all' ? allQuestions : allQuestions.filter(q => q.Status === status);
+        renderQuestions(filteredQuestions);
+    }
+
+    function updateStatus(id, status) {
+        const question = allQuestions.find(q => q.ID === id);
+        if (question) {
+            question.Status = status;
+            updateStats();
+            filterQuestions(currentFilter);
+            showNotification(`Question marked as: ${status}`);
+        } else {
+            showNotification(`Question not found: ${id}`);
+        }
+    }
+
+    function showNotification(message) {
+        const notification = document.createElement('div');
+        notification.style.cssText = `
+            position: fixed; top: 20px; right: 20px; background: #10b981; color: white; padding: 15px 25px; border-radius:5px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index:1000; animation: slideIn 0.3s ease;
+        `;
+        notification.innerHTML = `<i class="fas fa-check-circle"></i> ${message}`;
+        document.body.appendChild(notification);
+        setTimeout(() => {
+            notification.style.animation = 'slideOut 0.3s ease';
+            setTimeout(() => notification.remove(), 300);
+        }, 3000);
+    }
+
+    // API URL (replace as needed)
+    const API_URL = 'https://script.google.com/macros/s/AKfycbw5gOiWYeGS2eIKP77BqoOvTqKP4JJhJZXRGtGMUHOyxg0N_HyhmFtWMr-N3G0pMN8Wmg/exec';
+    let allQuestions = [];
+    let currentFilter = 'all';
+
+    async function loadQuestions() {
+        try {
+            const container = document.getElementById('questions-container');
+            container.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading questions...</div>';
+            const response = await fetch(API_URL);
+            const responseText = await response.text();
+            let questions;
+            try {
+                questions = JSON.parse(responseText);
+            } catch (parseError) {
+                throw new Error('Invalid JSON response from server');
+            }
+            if (!Array.isArray(questions)) throw new Error('Server did not return an array of questions');
+
+            questions.forEach(q => {
+                if (!q.Status) q.Status = 'New';
+                if (!q.ID) q.ID = 'Q' + Math.random().toString(36).substr(2,6).toUpperCase();
+                if (!q.Tanzeem) q.Tanzeem = 'Not Specified';
+                if (!q.Name) q.Name = 'Anonymous';
+            });
+
+            allQuestions = questions.reverse();
+            updateStats();
+            filterQuestions('all');
+        } catch (error) {
+            document.getElementById('questions-container').innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-exclamation-triangle fa-3x"></i>
+                    <h3>Unable to load questions</h3>
+                    <p>Please check your API URL and try again</p>
+                    <p><small>Error: ${escapeHtml(error.message)}</small></p>
+                    <button onclick="location.reload()" style="margin-top:20px; padding:10px 20px; background:#667eea; color:white; border:none; border-radius:5px; cursor:pointer;">
+                        <i class="fas fa-redo"></i> Retry
+                    </button>
+                </div>
+            `;
+            console.error(error);
+        }
+    }
+
+    // Expose to global (compatibility for inline handlers or console)
+    // This avoids the ReferenceError if something still calls loadQuestions() as a global.
+    window.loadQuestions = loadQuestions;
+
+    // Very small search implementation (prevents missing-function errors)
+    function searchQuestions() {
+        const q = document.getElementById('search-input').value.trim().toLowerCase();
+        if (!q) {
+            // show current filter's results
+            const filtered = currentFilter === 'all' ? allQuestions : allQuestions.filter(x => x.Status === currentFilter);
+            renderQuestions(filtered);
+            return;
+        }
+        const filtered = allQuestions.filter(item => {
+            return (item.Question && item.Question.toLowerCase().includes(q)) ||
+                   (item.Name && item.Name.toLowerCase().includes(q)) ||
+                   (item.Tanzeem && item.Tanzeem.toLowerCase().includes(q));
+        });
+        renderQuestions(filtered);
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // filter buttons
+        const filterButtons = document.querySelectorAll('.filter-btn');
+        filterButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const status = this.getAttribute('data-status');
+                filterQuestions(status, this);
+            });
+        });
+
+        // refresh button
+        const refreshBtn = document.querySelector('.refresh-btn');
+        if (refreshBtn) refreshBtn.addEventListener('click', loadQuestions);
+
+        // initial load
+        loadQuestions();
+        setInterval(loadQuestions, 30000);
+    });
+
+    // CSS animations for notifications
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes slideIn{ from{ transform: translateX(100%); opacity:0 } to{ transform: translateX(0); opacity:1 } }
+        @keyframes slideOut{ from{ transform: translateX(0); opacity:1 } to{ transform: translateX(100%); opacity:0 } }
+    `;
+    document.head.appendChild(style);
+    </script>
+</body>
+</html>
