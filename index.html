@@ -202,17 +202,25 @@
         renderQuestions(filteredQuestions);
     }
 
-    function updateStatus(id, status) {
+  async function updateStatus(id, status) {
+    try {
+        await fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, status })
+        });
+
         const question = allQuestions.find(q => q.ID === id);
-        if (question) {
-            question.Status = status;
-            updateStats();
-            filterQuestions(currentFilter);
-            showNotification(`Question marked as: ${status}`);
-        } else {
-            showNotification(`Question not found: ${id}`);
-        }
+        if (question) question.Status = status;
+
+        updateStats();
+        filterQuestions(currentFilter);
+        showNotification(`Question marked as: ${status}`);
+    } catch (err) {
+        showNotification('Failed to update status');
+        console.error(err);
     }
+}
 
     function showNotification(message) {
         const notification = document.createElement('div');
@@ -310,7 +318,7 @@
 
         // initial load
         loadQuestions();
-        setInterval(loadQuestions, 30000);
+        //setInterval(loadQuestions, 30000);
     });
 
     // CSS animations for notifications
@@ -323,4 +331,5 @@
     </script>
 </body>
 </html>
+
 
