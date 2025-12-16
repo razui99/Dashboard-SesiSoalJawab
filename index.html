@@ -201,25 +201,32 @@
         const filteredQuestions = status === 'all' ? allQuestions : allQuestions.filter(q => q.Status === status);
         renderQuestions(filteredQuestions);
     }
+        
+    async function updateStatus(id, status) {
+  try {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, status })
+    });
 
-  async function updateStatus(id, status) {
-    try {
-        await fetch(API_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id, status })
-        });
+    const result = await res.json();
 
-        const question = allQuestions.find(q => q.ID === id);
-        if (question) question.Status = status;
-
-        updateStats();
-        filterQuestions(currentFilter);
-        showNotification(`Question marked as: ${status}`);
-    } catch (err) {
-        showNotification('Failed to update status');
-        console.error(err);
+    if (!result.success) {
+      throw new Error(result.message || 'Update failed');
     }
+
+    const q = allQuestions.find(q => q.ID === id);
+    if (q) q.Status = status;
+
+    updateStats();
+    filterQuestions(currentFilter);
+    showNotification(`Marked as ${status}`);
+
+  } catch (err) {
+    console.error(err);
+    showNotification('❌ Failed to update status');
+  }
 }
 
     function showNotification(message) {
@@ -237,7 +244,7 @@
     }
 
     // API URL (replace as needed)
-    const API_URL = 'https://script.google.com/macros/s/AKfycbwQc82Zk83BnqYgFWoVPuYA3dta0Ly88hcgsOOKjiR8x3pDXIQUBYw5dmb7JqDj7A0zmg/exec';
+    const API_URL = 'https://script.google.com/macros/s/AKfycbz1E2nCGBXCqaNio9s7aDvkfo9uTjWyghxZQlV-VpA9NA9KiNJDucGGwYths0X_XTpYPA/exec';
     let allQuestions = [];
     let currentFilter = 'all';
 
@@ -331,6 +338,7 @@
     </script>
 </body>
 </html>
+
 
 
 
