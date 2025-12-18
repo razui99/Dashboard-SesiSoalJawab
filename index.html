@@ -720,24 +720,37 @@
         }
 
         // ============================================
-        // INITIALIZATION (FIXED)
-        // ============================================
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('Airtable Dashboard initializing...');
-            
-            // Check configuration - FIXED: Uses correct property name
-            if (!AIRTABLE_CONFIG.PERSONAL_ACCESS_TOKEN || AIRTABLE_CONFIG.PERSONAL_ACCESS_TOKEN.includes('YOUR_TOKEN') || 
-                !AIRTABLE_CONFIG.BASE_ID || AIRTABLE_CONFIG.BASE_ID.includes('YOUR_BASE_ID')) {
-                showNotification('⚠️ Please configure your Airtable Personal Access Token and Base ID in the code!', 'error');
-            }
-            
-            // Filter buttons
-            document.querySelectorAll('.filter-btn').forEach(button => {
-                button.addEventListener('click', function() {
-                    const status = this.getAttribute('data-status');
-                    filterQuestions(status, this);
-                });
-            });
+// INITIALIZATION (FIXED VERSION)
+// ============================================
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Airtable Dashboard initializing...');
+    
+    // FIXED LINE 713 - Changed from API_KEY to PERSONAL_ACCESS_TOKEN
+    if (!AIRTABLE_CONFIG.PERSONAL_ACCESS_TOKEN || AIRTABLE_CONFIG.PERSONAL_ACCESS_TOKEN.includes('YOUR_TOKEN') || 
+        !AIRTABLE_CONFIG.BASE_ID || AIRTABLE_CONFIG.BASE_ID.includes('YOUR_BASE_ID')) {
+        showNotification('⚠️ Please configure your Airtable Personal Access Token and Base ID in the code!', 'error');
+    }
+    
+    // Filter buttons
+    document.querySelectorAll('.filter-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const status = this.getAttribute('data-status');
+            filterQuestions(status, this);
+        });
+    });
+    
+    // Refresh button
+    document.getElementById('refreshButton').addEventListener('click', loadQuestions);
+    
+    // Search input
+    document.getElementById('search-input').addEventListener('input', searchQuestions);
+    
+    // Initial load
+    loadQuestions();
+    
+    // Auto-refresh every 30 seconds
+    setInterval(loadQuestions, 30000);
+});
             
             // Refresh button
             document.getElementById('refreshButton').addEventListener('click', loadQuestions);
@@ -754,3 +767,4 @@
     </script>
 </body>
 </html>
+
