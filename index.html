@@ -410,9 +410,9 @@
         // CONFIGURATION - UPDATE THESE VALUES
         // ============================================
         const AIRTABLE_CONFIG = {
-            PERSONAL_ACCESS_TOKEN: 'patoFSkhm3lVjvyNV.aeaef85f82f9ac7e5139be4b15a73b1a1bfd7ccfeb83bb37db584cb2704c1f7b', // Your Personal Access Token
-            BASE_ID: 'app6sSunzC4VYlqTO',            // Your Airtable Base ID
-            TABLE_NAME: 'Table 1'                 // Your table name
+            PERSONAL_ACCESS_TOKEN: 'patoFSkhm3lVjvyNV.aeaef85f82f9ac7e5139be4b15a73b1a1bfd7ccfeb83bb37db584cb2704c1f7b',
+            BASE_ID: 'app6sSunzC4VYlqTO',
+            TABLE_NAME: 'Table 1'
         };
 
         // ============================================
@@ -549,7 +549,6 @@
                 `;
             }).join('');
             
-            // Add event listeners to action buttons
             document.querySelectorAll('.action-btn').forEach(button => {
                 button.addEventListener('click', function() {
                     const recordId = this.getAttribute('data-record-id');
@@ -563,7 +562,6 @@
         function filterQuestions(status, clickedElement = null) {
             currentFilter = status;
             
-            // Update active button
             document.querySelectorAll('.filter-btn').forEach(btn => {
                 btn.classList.remove('active');
             });
@@ -583,7 +581,7 @@
         }
 
         // ============================================
-        // AIRTABLE API FUNCTIONS (UPDATED FOR PAT)
+        // AIRTABLE API FUNCTIONS
         // ============================================
         async function fetchQuestions() {
             try {
@@ -614,7 +612,6 @@
                 
                 const data = await response.json();
                 
-                // Transform Airtable data to our format
                 return data.records.map(record => ({
                     recordId: record.id,
                     Timestamp: record.fields.Timestamp || '',
@@ -654,7 +651,6 @@
                     throw new Error(`Update failed: ${response.status} ${response.statusText} - ${errorData.error?.message || ''}`);
                 }
                 
-                // Update local state
                 const question = allQuestions.find(q => q.recordId === recordId);
                 if (question) {
                     question.Status = newStatus;
@@ -678,7 +674,6 @@
                 allQuestions = await fetchQuestions();
                 console.log(`Loaded ${allQuestions.length} questions from Airtable`);
                 
-                // Sort by timestamp (newest first)
                 allQuestions.sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp));
                 
                 updateStats();
@@ -720,51 +715,31 @@
         }
 
         // ============================================
-// INITIALIZATION (FIXED VERSION)
-// ============================================
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('Airtable Dashboard initializing...');
-    
-    // FIXED LINE 713 - Changed from API_KEY to PERSONAL_ACCESS_TOKEN
-    if (!AIRTABLE_CONFIG.PERSONAL_ACCESS_TOKEN || AIRTABLE_CONFIG.PERSONAL_ACCESS_TOKEN.includes('YOUR_TOKEN') || 
-        !AIRTABLE_CONFIG.BASE_ID || AIRTABLE_CONFIG.BASE_ID.includes('YOUR_BASE_ID')) {
-        showNotification('⚠️ Please configure your Airtable Personal Access Token and Base ID in the code!', 'error');
-    }
-    
-    // Filter buttons
-    document.querySelectorAll('.filter-btn').forEach(button => {
-        button.addEventListener('click', function() {
-            const status = this.getAttribute('data-status');
-            filterQuestions(status, this);
-        });
-    });
-    
-    // Refresh button
-    document.getElementById('refreshButton').addEventListener('click', loadQuestions);
-    
-    // Search input
-    document.getElementById('search-input').addEventListener('input', searchQuestions);
-    
-    // Initial load
-    loadQuestions();
-    
-    // Auto-refresh every 30 seconds
-    setInterval(loadQuestions, 30000);
-});
+        // INITIALIZATION
+        // ============================================
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Airtable Dashboard initializing...');
             
-            // Refresh button
+            if (!AIRTABLE_CONFIG.PERSONAL_ACCESS_TOKEN || AIRTABLE_CONFIG.PERSONAL_ACCESS_TOKEN.includes('YOUR_TOKEN') || 
+                !AIRTABLE_CONFIG.BASE_ID || AIRTABLE_CONFIG.BASE_ID.includes('YOUR_BASE_ID')) {
+                showNotification('⚠️ Please configure your Airtable Personal Access Token and Base ID in the code!', 'error');
+            }
+            
+            document.querySelectorAll('.filter-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const status = this.getAttribute('data-status');
+                    filterQuestions(status, this);
+                });
+            });
+            
             document.getElementById('refreshButton').addEventListener('click', loadQuestions);
             
-            // Search input
             document.getElementById('search-input').addEventListener('input', searchQuestions);
             
-            // Initial load
             loadQuestions();
             
-            // Auto-refresh every 30 seconds
             setInterval(loadQuestions, 30000);
         });
     </script>
 </body>
 </html>
-
