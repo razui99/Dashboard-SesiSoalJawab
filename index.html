@@ -39,31 +39,6 @@
             margin-bottom: 0.5rem;
         }
 
-        .header-actions {
-            display: flex;
-            gap: 10px;
-            margin-top: 15px;
-        }
-
-        .sync-btn {
-            padding: 10px 20px;
-            background: #10b981;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-weight: bold;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 0.9rem;
-            transition: all 0.3s ease;
-        }
-
-        .sync-btn.pending {
-            background: #f59e0b;
-        }
-
         .stats {
             display: flex;
             gap: 15px;
@@ -371,10 +346,6 @@
             background: #ef4444;
         }
 
-        .notification.warning {
-            background: #f59e0b;
-        }
-
         @keyframes slideIn {
             from { transform: translateX(100%); opacity: 0; }
             to { transform: translateX(0); opacity: 1; }
@@ -391,12 +362,6 @@
         <header>
             <h1><i class="fas fa-comments"></i> Q&A Moderator Dashboard</h1>
             <p>Manage questions submitted by attendees with Tanzeem information</p>
-            
-            <div class="header-actions">
-                <button class="sync-btn" id="syncButton">
-                    <i class="fas fa-check-circle"></i> All Synced
-                </button>
-            </div>
             
             <div class="stats">
                 <div class="stat-card">
@@ -441,15 +406,24 @@
     </button>
 
     <script>
-        // Configuration
-        const API_URL = 'https://script.google.com/macros/s/AKfycbw5oXa9o5rCVevZj8die_T59oWSJ793o-O2ljnjKLSbw5RXHDCzzHak6gbu2FREqFNe2Q/exec';
-        
-        // Global state
+       // ============================================
+       // CONFIGURATION - UPDATE THESE VALUES
+       // ============================================
+        const AIRTABLE_CONFIG = {
+             PERSONAL_ACCESS_TOKEN: 'patoFSkhm3lVjvyNV.aeaef85f82f9ac7e5139be4b15a73b1a1bfd7ccfeb83bb37db584cb2704c1f7b', // 👈 Paste your new token here
+             BASE_ID: 'app6sSunzC4VYlqTO',            // This stays the same
+             TABLE_NAME: 'Q&A Questions'                  // Your table name
+       };
+
+        // ============================================
+        // GLOBAL STATE
+        // ============================================
         let allQuestions = [];
         let currentFilter = 'all';
-        let pendingUpdates = [];
 
-        // Helper functions
+        // ============================================
+        // HELPER FUNCTIONS
+        // ============================================
         function getInitials(name) {
             if (!name || name === 'Anonymous') return '?';
             return name.split(' ').map(n => n[0]).join('').toUpperCase().substr(0, 2);
@@ -493,7 +467,7 @@
         function showNotification(message, type = 'success') {
             const notification = document.createElement('div');
             notification.className = `notification ${type}`;
-            notification.innerHTML = message;
+            notification.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-triangle'}"></i> ${message}`;
             document.body.appendChild(notification);
             
             setTimeout(() => {
@@ -502,7 +476,9 @@
             }, 3000);
         }
 
-        // Core functions
+        // ============================================
+        // CORE FUNCTIONS
+        // ============================================
         function updateStats() {
             if (!allQuestions.length) return;
             
@@ -515,16 +491,6 @@
             document.getElementById('new-questions').textContent = newCount;
             document.getElementById('read-questions').textContent = readCount;
             document.getElementById('selected-questions').textContent = selectedCount;
-            
-            // Update sync button
-            const syncBtn = document.getElementById('syncButton');
-            if (pendingUpdates.length > 0) {
-                syncBtn.innerHTML = `<i class="fas fa-cloud-upload-alt"></i> Sync Changes (${pendingUpdates.length})`;
-                syncBtn.classList.add('pending');
-            } else {
-                syncBtn.innerHTML = `<i class="fas fa-check-circle"></i> All Synced`;
-                syncBtn.classList.remove('pending');
-            }
         }
 
         function renderQuestions(questions) {
@@ -567,13 +533,13 @@
                         </div>
                         
                         <div class="actions">
-                            <button class="action-btn btn-new" data-id="${escapeHtml(question.ID)}" data-status="New" ${isNew ? 'disabled style="opacity:0.5"' : ''}>
+                            <button class="action-btn btn-new" data-record-id="${escapeHtml(question.recordId)}" ${isNew ? 'disabled style="opacity:0.5"' : ''}>
                                 <i class="fas fa-circle"></i> Mark New
                             </button>
-                            <button class="action-btn btn-read" data-id="${escapeHtml(question.ID)}" data-status="Read" ${isRead ? 'disabled style="opacity:0.5"' : ''}>
+                            <button class="action-btn btn-read" data-record-id="${escapeHtml(question.recordId)}" ${isRead ? 'disabled style="opacity:0.5"' : ''}>
                                 <i class="fas fa-check-circle"></i> Mark Read
                             </button>
-                            <button class="action-btn btn-selected" data-id="${escapeHtml(question.ID)}" data-status="Selected" ${isSelected ? 'disabled style="opacity:0.5"' : ''}>
+                            <button class="action-btn btn-selected" data-record-id="${escapeHtml(question.recordId)}" ${isSelected ? 'disabled style="opacity:0.5"' : ''}>
                                 <i class="fas fa-star"></i> Select
                             </button>
                         </div>
@@ -586,9 +552,10 @@
             // Add event listeners to action buttons
             document.querySelectorAll('.action-btn').forEach(button => {
                 button.addEventListener('click', function() {
-                    const id = this.getAttribute('data-id');
-                    const status = this.getAttribute('data-status');
-                    updateStatusLocally(id, status);
+                    const recordId = this.getAttribute('data-record-id');
+                    const status = this.classList.contains('btn-new') ? 'New' : 
+                                  this.classList.contains('btn-read') ? 'Read' : 'Selected';
+                    updateQuestionStatus(recordId, status);
                 });
             });
         }
@@ -615,74 +582,75 @@
             renderQuestions(filteredQuestions);
         }
 
-        function updateStatusLocally(id, newStatus) {
-            const question = allQuestions.find(q => q.ID === id);
-            if (!question) return;
-            
-            const oldStatus = question.Status;
-            if (oldStatus === newStatus) return;
-            
-            // Update local state
-            question.Status = newStatus;
-            
-            // Add to pending updates
-            const existingUpdate = pendingUpdates.find(u => u.id === id);
-            if (existingUpdate) {
-                existingUpdate.newStatus = newStatus;
-            } else {
-                pendingUpdates.push({
-                    id: id,
-                    oldStatus: oldStatus,
-                    newStatus: newStatus,
-                    timestamp: new Date().toISOString()
-                });
-            }
-            
-            // Update UI
-            updateStats();
-            filterQuestions(currentFilter);
-            
-            showNotification(`Updated to ${newStatus} (pending sync)`, 'success');
-        }
-
-        async function syncToSheet() {
-            if (pendingUpdates.length === 0) {
-                showNotification('No changes to sync', 'warning');
-                return;
-            }
-            
-            const syncBtn = document.getElementById('syncButton');
-            const originalText = syncBtn.innerHTML;
-            const originalState = syncBtn.classList.contains('pending');
-            
+        // ============================================
+        // AIRTABLE API FUNCTIONS
+        // ============================================
+        async function fetchQuestions() {
             try {
-                syncBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Syncing...';
-                syncBtn.disabled = true;
+                const { API_KEY, BASE_ID, TABLE_NAME } = AIRTABLE_CONFIG;
+                const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(TABLE_NAME)}`;
                 
-                // Create a sync URL
-                const syncUrl = `${API_URL}?action=sync&updates=${encodeURIComponent(JSON.stringify(pendingUpdates))}&t=${Date.now()}`;
+               const response = await fetch(url, {
+    headers: {
+        'Authorization': `Bearer ${AIRTABLE_CONFIG.PERSONAL_ACCESS_TOKEN}`, // 👈 Key change here
+        'Content-Type': 'application/json'
+    }
+});
                 
-                // Open in new tab for syncing (GET request, no CORS issues)
-                const syncWindow = window.open(syncUrl, '_blank');
+                if (!response.ok) {
+                    throw new Error(`Airtable API error: ${response.status}`);
+                }
                 
-                // Clear pending updates after opening sync window
-                pendingUpdates = [];
-                updateStats();
+                const data = await response.json();
                 
-                showNotification('Sync started in new tab', 'success');
-                
-                // Refresh data after a delay
-                setTimeout(loadQuestions, 3000);
+                // Transform Airtable data to our format
+                return data.records.map(record => ({
+                    recordId: record.id,
+                    Timestamp: record.fields.Timestamp || '',
+                    Tanzeem: record.fields.Tanzeem || 'Not Specified',
+                    Name: record.fields.Name || 'Anonymous',
+                    Question: record.fields.Question || '[No question provided]',
+                    Status: record.fields.Status || 'New',
+                    ID: record.fields.ID || `Q${record.id.substring(0, 4)}`
+                }));
                 
             } catch (error) {
-                console.error('Sync error:', error);
-                showNotification('Sync failed', 'error');
-            } finally {
-                syncBtn.innerHTML = originalText;
-                syncBtn.disabled = false;
-                if (originalState) {
-                    syncBtn.classList.add('pending');
+                console.error('Fetch error:', error);
+                throw error;
+            }
+        }
+
+        async function updateQuestionStatus(recordId, newStatus) {
+            try {
+                const { API_KEY, BASE_ID, TABLE_NAME } = AIRTABLE_CONFIG;
+                const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(TABLE_NAME)}/${recordId}`;
+                
+               const response = await fetch(url, {
+    method: 'PATCH',
+    headers: {
+        'Authorization': `Bearer ${AIRTABLE_CONFIG.PERSONAL_ACCESS_TOKEN}`, // 👈 And here
+        'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ /* your data */ })
+});
+                
+                if (!response.ok) {
+                    throw new Error(`Update failed: ${response.status}`);
                 }
+                
+                // Update local state
+                const question = allQuestions.find(q => q.recordId === recordId);
+                if (question) {
+                    question.Status = newStatus;
+                    updateStats();
+                    filterQuestions(currentFilter);
+                }
+                
+                showNotification(`Status updated to ${newStatus}`, 'success');
+                
+            } catch (error) {
+                console.error('Update error:', error);
+                showNotification('Failed to update status', 'error');
             }
         }
 
@@ -691,37 +659,11 @@
                 const container = document.getElementById('questions-container');
                 container.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading questions...</div>';
                 
-                console.log('Loading questions from:', API_URL);
+                allQuestions = await fetchQuestions();
+                console.log(`Loaded ${allQuestions.length} questions from Airtable`);
                 
-                const response = await fetch(API_URL);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error: ${response.status}`);
-                }
-                
-                const questions = await response.json();
-                
-                if (!Array.isArray(questions)) {
-                    throw new Error('Invalid response format');
-                }
-                
-                // Process questions
-                allQuestions = questions.map((q, index) => {
-                    // Apply any pending updates
-                    const pendingUpdate = pendingUpdates.find(u => u.id === q.ID);
-                    const currentStatus = pendingUpdate ? pendingUpdate.newStatus : (q.Status || 'New');
-                    
-                    return {
-                        Timestamp: q.Timestamp || '',
-                        Tanzeem: q.Tanzeem || 'Not Specified',
-                        Name: q.Name || 'Anonymous',
-                        Question: q.Question || '[No question provided]',
-                        Status: currentStatus,
-                        ID: q.ID || 'Q' + (1000 + index)
-                    };
-                }).reverse(); // Newest first
-                
-                console.log(`Loaded ${allQuestions.length} questions`);
+                // Sort by timestamp (newest first)
+                allQuestions.sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp));
                 
                 updateStats();
                 filterQuestions('all');
@@ -735,6 +677,7 @@
                         <i class="fas fa-exclamation-triangle fa-3x"></i>
                         <h3>Unable to load questions</h3>
                         <p>${escapeHtml(error.message)}</p>
+                        <p><small>Please check your Airtable configuration</small></p>
                         <button onclick="loadQuestions()" style="margin-top:20px; padding:10px 20px; background:#667eea; color:white; border:none; border-radius:5px; cursor:pointer;">
                             <i class="fas fa-redo"></i> Retry
                         </button>
@@ -760,9 +703,17 @@
             renderQuestions(filtered);
         }
 
-        // Initialize the dashboard
+        // ============================================
+        // INITIALIZATION
+        // ============================================
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('Dashboard initializing...');
+            console.log('Airtable Dashboard initializing...');
+            
+            // Check configuration
+            if (AIRTABLE_CONFIG.API_KEY.includes('YOUR_') || AIRTABLE_CONFIG.BASE_ID.includes('YOUR_')) {
+                alert('⚠️ Please update your Airtable configuration in the JavaScript code!');
+                showNotification('Please configure Airtable API credentials', 'error');
+            }
             
             // Filter buttons
             document.querySelectorAll('.filter-btn').forEach(button => {
@@ -774,9 +725,6 @@
             
             // Refresh button
             document.getElementById('refreshButton').addEventListener('click', loadQuestions);
-            
-            // Sync button
-            document.getElementById('syncButton').addEventListener('click', syncToSheet);
             
             // Search input
             document.getElementById('search-input').addEventListener('input', searchQuestions);
