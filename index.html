@@ -406,14 +406,14 @@
     </button>
 
     <script>
-       // ============================================
-       // CONFIGURATION - UPDATE THESE VALUES
-       // ============================================
+        // ============================================
+        // CONFIGURATION - UPDATE THESE VALUES
+        // ============================================
         const AIRTABLE_CONFIG = {
-             PERSONAL_ACCESS_TOKEN: 'patoFSkhm3lVjvyNV.aeaef85f82f9ac7e5139be4b15a73b1a1bfd7ccfeb83bb37db584cb2704c1f7b', // 👈 Paste your new token here
-             BASE_ID: 'app6sSunzC4VYlqTO',            // This stays the same
-             TABLE_NAME: 'Q&A Questions'                  // Your table name
-       };
+            PERSONAL_ACCESS_TOKEN: 'patoFSkhm3lVjvyNV.aeaef85f82f9ac7e5139be4b15a73b1a1bfd7ccfeb83bb37db584cb2704c1f7b', // Your Personal Access Token
+            BASE_ID: 'app6sSunzC4VYlqTO',            // Your Airtable Base ID
+            TABLE_NAME: 'Table 1'                 // Your table name
+        };
 
         // ============================================
         // GLOBAL STATE
@@ -583,22 +583,33 @@
         }
 
         // ============================================
-        // AIRTABLE API FUNCTIONS
+        // AIRTABLE API FUNCTIONS (UPDATED FOR PAT)
         // ============================================
         async function fetchQuestions() {
             try {
-                const { API_KEY, BASE_ID, TABLE_NAME } = AIRTABLE_CONFIG;
+                const { PERSONAL_ACCESS_TOKEN, BASE_ID, TABLE_NAME } = AIRTABLE_CONFIG;
+                
+                if (!PERSONAL_ACCESS_TOKEN || PERSONAL_ACCESS_TOKEN.includes('YOUR_TOKEN')) {
+                    throw new Error('Please configure your Airtable Personal Access Token');
+                }
+                
+                if (!BASE_ID || BASE_ID.includes('YOUR_BASE_ID')) {
+                    throw new Error('Please configure your Airtable Base ID');
+                }
+                
                 const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(TABLE_NAME)}`;
                 
-               const response = await fetch(url, {
-    headers: {
-        'Authorization': `Bearer ${AIRTABLE_CONFIG.PERSONAL_ACCESS_TOKEN}`, // 👈 Key change here
-        'Content-Type': 'application/json'
-    }
-});
+                console.log('Fetching from Airtable:', url);
+                
+                const response = await fetch(url, {
+                    headers: {
+                        'Authorization': `Bearer ${PERSONAL_ACCESS_TOKEN}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
                 
                 if (!response.ok) {
-                    throw new Error(`Airtable API error: ${response.status}`);
+                    throw new Error(`Airtable API error: ${response.status} ${response.statusText}`);
                 }
                 
                 const data = await response.json();
@@ -622,20 +633,25 @@
 
         async function updateQuestionStatus(recordId, newStatus) {
             try {
-                const { API_KEY, BASE_ID, TABLE_NAME } = AIRTABLE_CONFIG;
+                const { PERSONAL_ACCESS_TOKEN, BASE_ID, TABLE_NAME } = AIRTABLE_CONFIG;
                 const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(TABLE_NAME)}/${recordId}`;
                 
-               const response = await fetch(url, {
-    method: 'PATCH',
-    headers: {
-        'Authorization': `Bearer ${AIRTABLE_CONFIG.PERSONAL_ACCESS_TOKEN}`, // 👈 And here
-        'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ /* your data */ })
-});
+                const response = await fetch(url, {
+                    method: 'PATCH',
+                    headers: {
+                        'Authorization': `Bearer ${PERSONAL_ACCESS_TOKEN}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        fields: {
+                            Status: newStatus
+                        }
+                    })
+                });
                 
                 if (!response.ok) {
-                    throw new Error(`Update failed: ${response.status}`);
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(`Update failed: ${response.status} ${response.statusText} - ${errorData.error?.message || ''}`);
                 }
                 
                 // Update local state
@@ -650,7 +666,7 @@
                 
             } catch (error) {
                 console.error('Update error:', error);
-                showNotification('Failed to update status', 'error');
+                showNotification(`Failed to update status: ${error.message}`, 'error');
             }
         }
 
@@ -704,15 +720,15 @@
         }
 
         // ============================================
-        // INITIALIZATION
+        // INITIALIZATION (FIXED)
         // ============================================
         document.addEventListener('DOMContentLoaded', function() {
             console.log('Airtable Dashboard initializing...');
             
-            // Check configuration
-            if (AIRTABLE_CONFIG.API_KEY.includes('YOUR_') || AIRTABLE_CONFIG.BASE_ID.includes('YOUR_')) {
-                alert('⚠️ Please update your Airtable configuration in the JavaScript code!');
-                showNotification('Please configure Airtable API credentials', 'error');
+            // Check configuration - FIXED: Uses correct property name
+            if (!AIRTABLE_CONFIG.PERSONAL_ACCESS_TOKEN || AIRTABLE_CONFIG.PERSONAL_ACCESS_TOKEN.includes('YOUR_TOKEN') || 
+                !AIRTABLE_CONFIG.BASE_ID || AIRTABLE_CONFIG.BASE_ID.includes('YOUR_BASE_ID')) {
+                showNotification('⚠️ Please configure your Airtable Personal Access Token and Base ID in the code!', 'error');
             }
             
             // Filter buttons
