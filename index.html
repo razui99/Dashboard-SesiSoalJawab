@@ -1,123 +1,426 @@
-// Add this function to your existing Apps Script
-function doGet(e) {
-  try {
-    const action = e.parameter.action;
+<script>
+    // ============================================
+    // CONFIGURATION
+    // ============================================
+    const API_URL = 'https://script.google.com/macros/s/AKfycbw5oXa9o5rCVevZj8die_T59oWSJ793o-O2ljnjKLSbw5RXHDCzzHak6gbu2FREqFNe2Q/exec';
     
-    if (action === 'sync') {
-      // Handle sync from dashboard
-      const updatesParam = e.parameter.updates;
-      if (updatesParam) {
-        const updates = JSON.parse(updatesParam);
-        return handleSync(updates);
-      }
-      return createResponse({ success: false, message: 'No updates provided' });
+    // Store pending updates locally
+    let pendingUpdates = [];
+    let allQuestions = [];
+    let currentFilter = 'all';
+
+    // ============================================
+    // HELPER FUNCTIONS (keep your existing ones)
+    // ============================================
+    function getInitials(name) {
+        if (!name || name === 'Anonymous') return '?';
+        return name.split(' ').map(n => n[0]).join('').toUpperCase().substr(0, 2);
     }
-    
-    // Default: return questions
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-    const data = sheet.getDataRange().getValues();
-    
-    if (data.length <= 1) {
-      return createResponse([]);
+
+    function getStatusIcon(status) {
+        switch(status) {
+            case 'New': return 'fa-clock';
+            case 'Read': return 'fa-check';
+            case 'Selected': return 'fa-star';
+            default: return 'fa-question';
+        }
     }
-    
-    const headers = data[0];
-    const questions = [];
-    
-    for (let i = 1; i < data.length; i++) {
-      const row = data[i];
-      const question = {};
-      
-      for (let j = 0; j < headers.length; j++) {
-        const headerName = headers[j];
-        let value = row[j];
+
+    function formatTimestamp(timestamp) {
+        if (!timestamp) return 'Just now';
+        const date = new Date(timestamp);
+        if (isNaN(date.getTime())) return timestamp;
         
-        if (value === '' || value === null || value === undefined) {
-          if (headerName === 'Status') value = 'New';
-          if (headerName === 'ID') value = 'Q' + (i + 1000);
-          if (headerName === 'Name') value = 'Anonymous';
-          if (headerName === 'Tanzeem') value = 'Not Specified';
-          if (headerName === 'Question') value = '[No question provided]';
+        const now = new Date();
+        const diffMs = now - date;
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMs / 3600000);
+        
+        if (diffMins < 1) return 'Just now';
+        if (diffMins < 60) return `${diffMins} min ago`;
+        if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+        
+        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { 
+            hour: '2-digit', 
+            minute: '2-digit' 
+        });
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // ============================================
+    // CORE FUNCTIONS - UPDATED
+    // ============================================
+    function updateStats() {
+        if (!allQuestions || !Array.isArray(allQuestions)) return;
+        
+        const total = allQuestions.length;
+        const newCount = allQuestions.filter(q => q.Status === 'New').length;
+        const readCount = allQuestions.filter(q => q.Status === 'Read').length;
+        const selectedCount = allQuestions.filter(q => q.Status === 'Selected').length;
+        
+        // Update counts
+        document.getElementById('total-questions').textContent = total;
+        document.getElementById('new-questions').textContent = newCount;
+        document.getElementById('read-questions').textContent = readCount;
+        document.getElementById('selected-questions').textContent = selectedCount;
+        
+        // Show pending updates count
+        const pendingCount = pendingUpdates.length;
+        const syncBtn = document.querySelector('.sync-btn');
+        if (syncBtn) {
+            if (pendingCount > 0) {
+                syncBtn.innerHTML = `<i class="fas fa-cloud-upload-alt"></i> Sync Changes (${pendingCount})`;
+                syncBtn.style.background = '#f59e0b';
+            } else {
+                syncBtn.innerHTML = `<i class="fas fa-check-circle"></i> All Synced`;
+                syncBtn.style.background = '#10b981';
+            }
+        }
+    }
+
+    function renderQuestions(questions) {
+        const container = document.getElementById('questions-container');
+        if (!container) return;
+        
+        if (!questions || questions.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-inbox fa-3x"></i>
+                    <h3>No questions found</h3>
+                    <p>${currentFilter === 'all' ? 'No questions have been submitted yet.' : `No questions with status "${currentFilter}"`}</p>
+                </div>
+            `;
+            return;
         }
         
-        question[headerName] = value;
-      }
-      
-      if (!question.ID || question.ID === '') {
-        question.ID = 'Q' + (i + 1000);
-      }
-      
-      if (!question.Status || question.Status === '') {
-        question.Status = 'New';
-      }
-      
-      questions.push(question);
+        container.innerHTML = questions.map(question => {
+            const isNew = question.Status === 'New';
+            const isRead = question.Status === 'Read';
+            const isSelected = question.Status === 'Selected';
+            
+            return `
+                <div class="question-card ${question.Status.toLowerCase()}">
+                    <div class="question-header">
+                        <div class="user-info">
+                            <div class="avatar">${getInitials(question.Name)}</div>
+                            <div class="user-details">
+                                <div class="user-name">${escapeHtml(question.Name)}</div>
+                                <div class="tanzeem">${escapeHtml(question.Tanzeem)}</div>
+                                <div class="timestamp">${formatTimestamp(question.Timestamp)}</div>
+                            </div>
+                        </div>
+                        <span class="status-badge badge-${question.Status.toLowerCase()}">
+                            <i class="fas ${getStatusIcon(question.Status)}"></i> ${question.Status}
+                        </span>
+                    </div>
+                    
+                    <div class="question-content">
+                        ${escapeHtml(question.Question)}
+                    </div>
+                    
+                    <div class="actions">
+                        <button class="action-btn btn-new" onclick="updateStatusLocally('${escapeHtml(question.ID)}', 'New')" ${isNew ? 'disabled style="opacity:0.5"' : ''}>
+                            <i class="fas fa-circle"></i> Mark New
+                        </button>
+                        <button class="action-btn btn-read" onclick="updateStatusLocally('${escapeHtml(question.ID)}', 'Read')" ${isRead ? 'disabled style="opacity:0.5"' : ''}>
+                            <i class="fas fa-check-circle"></i> Mark Read
+                        </button>
+                        <button class="action-btn btn-selected" onclick="updateStatusLocally('${escapeHtml(question.ID)}', 'Selected')" ${isSelected ? 'disabled style="opacity:0.5"' : ''}>
+                            <i class="fas fa-star"></i> Select
+                        </button>
+                    </div>
+                    
+                    <div class="question-id">ID: ${escapeHtml(question.ID)}</div>
+                </div>
+            `;
+        }).join('');
     }
-    
-    console.log('Returning ' + questions.length + ' questions');
-    return createResponse(questions);
-    
-  } catch (error) {
-    console.error('Error in doGet: ' + error.toString());
-    return createResponse({ error: error.toString() });
-  }
-}
 
-function handleSync(updates) {
-  try {
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-    const data = sheet.getDataRange().getValues();
-    const headers = data[0];
-    
-    const idCol = headers.indexOf('ID');
-    const statusCol = headers.indexOf('Status');
-    
-    if (idCol === -1 || statusCol === -1) {
-      return createResponse({ success: false, message: 'ID or Status column not found' });
-    }
-    
-    let updatedCount = 0;
-    
-    for (const update of updates) {
-      for (let i = 1; i < data.length; i++) {
-        if (data[i][idCol] == update.id) {
-          sheet.getRange(i + 1, statusCol + 1).setValue(update.newStatus);
-          updatedCount++;
-          break;
+    // Updated function - LOCAL update only
+    function updateStatusLocally(id, status) {
+        console.log(`Updating question ${id} to ${status} locally`);
+        
+        const question = allQuestions.find(q => q.ID === id);
+        if (question) {
+            // Check if status is actually changing
+            if (question.Status !== status) {
+                // Add to pending updates
+                pendingUpdates.push({
+                    id: id,
+                    oldStatus: question.Status,
+                    newStatus: status,
+                    timestamp: new Date().toISOString()
+                });
+                
+                // Update local data
+                question.Status = status;
+                
+                // Update UI immediately
+                updateStats();
+                filterQuestions(currentFilter);
+                
+                showNotification(`✓ Updated to ${status} (pending sync)`);
+            }
         }
-      }
     }
-    
-    return HtmlService.createHtmlOutput(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Sync Complete</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 40px; text-align: center; }
-            .success { color: green; font-size: 24px; margin: 20px 0; }
-            .info { color: #666; margin: 20px 0; }
-          </style>
-        </head>
-        <body>
-          <div class="success">✓ Sync Successful!</div>
-          <div class="info">Updated ${updatedCount} questions in Google Sheets.</div>
-          <div class="info">You can close this tab now.</div>
-        </body>
-      </html>
-    `);
-    
-  } catch (error) {
-    console.error('Sync error:', error);
-    return createResponse({ success: false, message: error.toString() });
-  }
-}
 
-function createResponse(data) {
-  const output = ContentService.createTextOutput(JSON.stringify(data));
-  output.setMimeType(ContentService.MimeType.JSON);
-  output.setHeaders({
-    'Access-Control-Allow-Origin': '*'
-  });
-  return output;
-}
+    // NEW FUNCTION: Sync changes to Google Sheet
+    async function syncToSheet() {
+        if (pendingUpdates.length === 0) {
+            showNotification("No changes to sync");
+            return;
+        }
+        
+        const syncBtn = document.querySelector('.sync-btn');
+        const originalText = syncBtn.innerHTML;
+        
+        try {
+            syncBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Syncing...';
+            syncBtn.disabled = true;
+            
+            console.log(`Syncing ${pendingUpdates.length} updates to sheet...`);
+            
+            // Create a simple form that will redirect
+            const form = document.createElement('form');
+            form.method = 'GET';
+            form.action = API_URL.replace('/exec', '/dev') + '?action=sync';
+            form.target = '_blank';
+            form.style.display = 'none';
+            
+            // Add data as URL parameters
+            const params = new URLSearchParams();
+            params.append('updates', JSON.stringify(pendingUpdates));
+            form.action = form.action + '&' + params.toString();
+            
+            document.body.appendChild(form);
+            form.submit();
+            document.body.removeChild(form);
+            
+            // Clear pending updates after successful sync
+            pendingUpdates = [];
+            updateStats();
+            
+            showNotification("✓ Sync started in new tab");
+            
+            // Refresh questions after sync
+            setTimeout(loadQuestions, 2000);
+            
+        } catch (error) {
+            console.error('Sync error:', error);
+            showNotification('✗ Sync failed');
+        } finally {
+            syncBtn.innerHTML = originalText;
+            syncBtn.disabled = false;
+        }
+    }
+
+    function filterQuestions(status, clickedElement = null) {
+        if (!allQuestions) return;
+        
+        currentFilter = status;
+        
+        // Update active button
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        
+        if (clickedElement) {
+            clickedElement.classList.add('active');
+        } else {
+            const buttonToActivate = document.querySelector(`.filter-btn[data-status="${status}"]`);
+            if (buttonToActivate) buttonToActivate.classList.add('active');
+        }
+        
+        const filteredQuestions = status === 'all' 
+            ? allQuestions 
+            : allQuestions.filter(q => q.Status === status);
+        
+        renderQuestions(filteredQuestions);
+    }
+
+    function showNotification(message) {
+        const notification = document.createElement('div');
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #10b981;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 5px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+        `;
+        notification.innerHTML = message;
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            notification.style.animation = 'slideOut 0.3s ease';
+            setTimeout(() => notification.remove(), 300);
+        }, 3000);
+    }
+
+    async function loadQuestions() {
+        try {
+            const container = document.getElementById('questions-container');
+            if (container) {
+                container.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading questions...</div>';
+            }
+            
+            console.log('Loading questions from:', API_URL);
+            
+            // Use a GET request (no CORS issues with GET)
+            const response = await fetch(API_URL);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const questions = await response.json();
+            console.log('Received questions:', questions);
+            
+            if (!Array.isArray(questions)) {
+                throw new Error('Server did not return an array');
+            }
+            
+            // Merge with pending updates
+            allQuestions = questions.map((q, index) => {
+                // Apply any pending updates to this question
+                const pendingUpdate = pendingUpdates.find(u => u.id === q.ID);
+                return {
+                    ...q,
+                    Status: pendingUpdate ? pendingUpdate.newStatus : (q.Status || 'New'),
+                    ID: q.ID || 'Q' + (1000 + index),
+                    Tanzeem: q.Tanzeem || 'Not Specified',
+                    Name: q.Name || 'Anonymous',
+                    Question: q.Question || '[No question provided]'
+                };
+            }).reverse();
+            
+            console.log('Loaded', allQuestions.length, 'questions');
+            
+            updateStats();
+            filterQuestions('all');
+            
+        } catch (error) {
+            console.error('Load error:', error);
+            const container = document.getElementById('questions-container');
+            if (container) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-exclamation-triangle fa-3x"></i>
+                        <h3>Unable to load questions</h3>
+                        <p>${error.message}</p>
+                        <button onclick="window.loadQuestions()" style="margin-top:20px; padding:10px 20px; background:#667eea; color:white; border:none; border-radius:5px; cursor:pointer;">
+                            <i class="fas fa-redo"></i> Retry
+                        </button>
+                    </div>
+                `;
+            }
+        }
+    }
+
+    function searchQuestions() {
+        const searchInput = document.getElementById('search-input');
+        if (!searchInput || !allQuestions) return;
+        
+        const query = searchInput.value.toLowerCase().trim();
+        
+        if (!query) {
+            filterQuestions(currentFilter);
+            return;
+        }
+        
+        const filtered = allQuestions.filter(q => 
+            (q.Question && q.Question.toLowerCase().includes(query)) ||
+            (q.Name && q.Name.toLowerCase().includes(query)) ||
+            (q.Tanzeem && q.Tanzeem.toLowerCase().includes(query))
+        );
+        
+        renderQuestions(filtered);
+    }
+
+    // ============================================
+    // INITIALIZATION
+    // ============================================
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('Dashboard initializing...');
+        
+        // Setup filter buttons
+        const filterButtons = document.querySelectorAll('.filter-btn');
+        filterButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const status = this.getAttribute('data-status');
+                filterQuestions(status, this);
+            });
+        });
+        
+        // Setup refresh button
+        const refreshBtn = document.querySelector('.refresh-btn');
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', loadQuestions);
+        }
+        
+        // Setup search input
+        const searchInput = document.getElementById('search-input');
+        if (searchInput) {
+            searchInput.addEventListener('keyup', searchQuestions);
+        }
+        
+        // Add sync button to header
+        const header = document.querySelector('header');
+        if (header) {
+            const syncBtn = document.createElement('button');
+            syncBtn.className = 'sync-btn';
+            syncBtn.innerHTML = '<i class="fas fa-check-circle"></i> All Synced';
+            syncBtn.style.cssText = `
+                margin-top: 20px;
+                padding: 10px 20px;
+                background: #10b981;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                cursor: pointer;
+                font-weight: bold;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                font-size: 0.9rem;
+            `;
+            syncBtn.onclick = syncToSheet;
+            header.appendChild(syncBtn);
+        }
+        
+        // Make functions available globally
+        window.updateStatusLocally = updateStatusLocally;
+        window.loadQuestions = loadQuestions;
+        window.searchQuestions = searchQuestions;
+        window.syncToSheet = syncToSheet;
+        
+        // Initial load
+        loadQuestions();
+        
+        // Auto-refresh every 30 seconds
+        setInterval(loadQuestions, 30000);
+    });
+
+    // Add CSS animations
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+    `;
+    document.head.appendChild(style);
+</script>
