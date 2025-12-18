@@ -250,18 +250,21 @@
     }
 
     async function updateStatus(id, status) {
-        if (!id || !status) return;
-        
-        try {
-            console.log(`Updating question ${id} to ${status}`);
-            
-            // First update locally for immediate feedback
-            const question = allQuestions.find(q => q.ID === id);
-            if (question) {
-                question.Status = status;
-                updateStats();
-                filterQuestions(currentFilter);
-            }
+  try {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      // REMOVE the 'mode: 'cors'' line entirely
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8', // CHANGED from 'application/json'
+      },
+      body: JSON.stringify({ id, status })
+    });
+    // ... rest of your function remains the same
+  } catch (err) {
+    console.error(err);
+    showNotification('❌ Failed to update status');
+  }
+}
             
             // Then send to server
             const response = await fetch(API_URL, {
@@ -437,6 +440,7 @@
 </script>
 </body>
 </html>
+
 
 
 
