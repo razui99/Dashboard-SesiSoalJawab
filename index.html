@@ -1,449 +1,123 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Q&A Moderator Dashboard</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        /* (styles unchanged — keep your original CSS) */
-        * { margin:0; padding:0; box-sizing:border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif; background:#f5f5f5; color:#333; line-height:1.6; }
-        .container { max-width:1200px; margin:0 auto; padding:20px; }
-        header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color:white; padding:2rem; border-radius:10px; margin-bottom:2rem; box-shadow:0 4px 6px rgba(0,0,0,0.1); }
-        h1 { font-size:2.5rem; margin-bottom:0.5rem; }
-        .stats{ display:flex; gap:15px; flex-wrap:wrap; margin-top:1.5rem; }
-        .stat-card{ background: rgba(255,255,255,0.2); padding:15px; border-radius:8px; min-width:140px; backdrop-filter: blur(10px); flex:1; }
-        .stat-value{ font-size:2rem; font-weight:bold; margin-bottom:5px; }
-        .stat-label{ font-size:0.9rem; opacity:0.9; }
-        .filters{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:2rem; padding:15px; background:white; border-radius:10px; box-shadow:0 2px 5px rgba(0,0,0,0.05); }
-        .filter-btn{ padding:10px 20px; border:none; border-radius:25px; cursor:pointer; font-weight:600; transition:all 0.3s ease; font-size:0.9rem; }
-        .filter-btn.active{ transform: translateY(-2px); box-shadow:0 4px 12px rgba(0,0,0,0.15); }
-        .status-new{ background:#3b82f6; color:white; } .status-read{ background:#10b981; color:white; } .status-selected{ background:#f59e0b; color:white; } .status-all{ background:#6b7280; color:white; }
-        .questions-container{ display:grid; grid-template-columns:repeat(auto-fill, minmax(350px, 1fr)); gap:20px; }
-        .question-card{ background:white; border-radius:10px; padding:20px; box-shadow:0 2px 10px rgba(0,0,0,0.08); transition:transform 0.3s ease, box-shadow 0.3s ease; border-left:5px solid #3b82f6; display:flex; flex-direction:column; }
-        .question-card:hover{ transform: translateY(-5px); box-shadow:0 5px 20px rgba(0,0,0,0.15); }
-        .question-card.new{ border-left-color:#3b82f6; } .question-card.read{ border-left-color:#10b981; } .question-card.selected{ border-left-color:#f59e0b; }
-        .question-header{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:15px; flex-wrap:wrap; gap:10px; }
-        .user-info{ display:flex; align-items:center; gap:10px; flex:1; min-width:200px; }
-        .avatar{ width:40px; height:40px; background:linear-gradient(135deg,#667eea,#764ba2); border-radius:50%; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold; flex-shrink:0; }
-        .user-details{ flex:1; } .user-name{ font-weight:bold; font-size:1.1rem; margin-bottom:3px; } .tanzeem{ background:#e0e7ff; color:#3730a3; padding:3px 10px; border-radius:12px; font-size:0.8rem; font-weight:600; display:inline-block; margin-top:5px; } .timestamp{ color:#6b7280; font-size:0.85rem; margin-top:5px; }
-        .question-content{ font-size:1.1rem; margin:15px 0; line-height:1.5; flex:1; padding:15px; background:#f8fafc; border-radius:8px; border-left:3px solid #cbd5e1; }
-        .status-badge{ display:inline-block; padding:5px 15px; border-radius:20px; font-size:0.85rem; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; white-space:nowrap; }
-        .badge-new{ background:#dbeafe; color:#1e40af; } .badge-read{ background:#d1fae5; color:#065f46; } .badge-selected{ background:#fef3c7; color:#92400e; }
-        .actions{ display:flex; gap:10px; margin-top:20px; flex-wrap:wrap; }
-        .action-btn{ padding:8px 16px; border:none; border-radius:5px; cursor:pointer; font-weight:600; transition:all 0.2s ease; flex:1; min-width:80px; font-size:0.9rem; display:flex; align-items:center; justify-content:center; gap:5px; }
-        .action-btn:hover{ opacity:0.9; transform: translateY(-1px); } .btn-new{ background:#3b82f6; color:white; } .btn-read{ background:#10b981; color:white; } .btn-selected{ background:#f59e0b; color:white; }
-        .refresh-btn{ position:fixed; bottom:30px; right:30px; background:linear-gradient(135deg,#667eea,#764ba2); color:white; border:none; width:60px; height:60px; border-radius:50%; cursor:pointer; font-size:1.5rem; box-shadow:0 4px 15px rgba(0,0,0,0.2); transition:all 0.3s ease; z-index:100; }
-        .refresh-btn:hover{ transform: rotate(30deg) scale(1.1); }
-        @media (max-width:768px){ .container{ padding:10px; } .questions-container{ grid-template-columns:1fr; } .filters{ justify-content:center; } h1{ font-size:2rem; } .stat-card{ min-width:calc(50% - 15px); } .user-info{ min-width:100%; } }
-        .loading{ text-align:center; padding:40px; font-size:1.2rem; color:#6b7280; grid-column:1 / -1; }
-        .empty-state{ text-align:center; padding:60px 20px; color:#6b7280; grid-column:1 / -1; background:white; border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,0.08); }
-        .search-bar{ margin-bottom:20px; } .search-input{ width:100%; padding:15px; border:2px solid #e5e7eb; border-radius:10px; font-size:1rem; transition:border-color 0.3s ease; } .search-input:focus{ outline:none; border-color:#667eea; }
-        .question-id{ font-size:0.8rem; color:#9ca3af; font-family:monospace; margin-top:10px; text-align:right; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <header>
-            <h1><i class="fas fa-comments"></i> Q&A Moderator Dashboard</h1>
-            <p>Manage questions submitted by attendees with Tanzeem information</p>
-            <div class="stats">
-                <div class="stat-card">
-                    <div class="stat-value" id="total-questions">0</div>
-                    <div class="stat-label">Total Questions</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="new-questions">0</div>
-                    <div class="stat-label">New</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="read-questions">0</div>
-                    <div class="stat-label">Read</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="selected-questions">0</div>
-                    <div class="stat-label">Selected</div>
-                </div>
-            </div>
-        </header>
-
-        <div class="search-bar">
-            <input type="text" class="search-input" id="search-input" placeholder="Search questions, names, or tanzeem..." onkeyup="searchQuestions()">
-        </div>
-
-        <div class="filters" id="filter-buttons">
-             <button class="filter-btn status-all active" data-status="all">All Questions</button>
-             <button class="filter-btn status-new" data-status="New">New</button>
-             <button class="filter-btn status-read" data-status="Read">Read</button>
-             <button class="filter-btn status-selected" data-status="Selected">Selected</button>
-        </div>
-
-        <div class="questions-container" id="questions-container">
-            <div class="loading">
-                <i class="fas fa-spinner fa-spin"></i> Loading questions...
-            </div>
-        </div>
-    </div>
-
-    <!-- removed inline onclick here (was onclick="loadQuestions()") -->
-    <button class="refresh-btn" title="Refresh Questions">
-        <i class="fas fa-sync-alt"></i>
-    </button>
-
-    <script>
-    // ============================================
-    // CONFIGURATION
-    // ============================================
-    // REPLACE THIS WITH YOUR NEW APPS SCRIPT URL
-    const API_URL = 'https://script.google.com/macros/s/AKfycby_7Ka5zZm2I60z31QUPDqThqUxqFUdSvgiV_e68CTR9BRQB3Lz1ck40EqOnnxPrTtofQ/exec';
-    
-    // Global variables
-    let allQuestions = [];
-    let currentFilter = 'all';
-
-    // ============================================
-    // HELPER FUNCTIONS
-    // ============================================
-    function getInitials(name) {
-        if (!name || name === 'Anonymous') return '?';
-        return name.split(' ').map(n => n[0]).join('').toUpperCase().substr(0, 2);
-    }
-
-    function getStatusIcon(status) {
-        switch(status) {
-            case 'New': return 'fa-clock';
-            case 'Read': return 'fa-check';
-            case 'Selected': return 'fa-star';
-            default: return 'fa-question';
-        }
-    }
-
-    function formatTimestamp(timestamp) {
-        if (!timestamp) return 'Just now';
-        const date = new Date(timestamp);
-        if (isNaN(date.getTime())) return timestamp;
-        
-        const now = new Date();
-        const diffMs = now - date;
-        const diffMins = Math.floor(diffMs / 60000);
-        const diffHours = Math.floor(diffMs / 3600000);
-        
-        if (diffMins < 1) return 'Just now';
-        if (diffMins < 60) return `${diffMins} min ago`;
-        if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
-        
-        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { 
-            hour: '2-digit', 
-            minute: '2-digit' 
-        });
-    }
-
-    function escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-
-    // ============================================
-    // CORE FUNCTIONS
-    // ============================================
-    function updateStats() {
-        if (!allQuestions || !Array.isArray(allQuestions)) return;
-        
-        const total = allQuestions.length;
-        const newCount = allQuestions.filter(q => q.Status === 'New').length;
-        const readCount = allQuestions.filter(q => q.Status === 'Read').length;
-        const selectedCount = allQuestions.filter(q => q.Status === 'Selected').length;
-        
-        const totalEl = document.getElementById('total-questions');
-        const newEl = document.getElementById('new-questions');
-        const readEl = document.getElementById('read-questions');
-        const selectedEl = document.getElementById('selected-questions');
-        
-        if (totalEl) totalEl.textContent = total;
-        if (newEl) newEl.textContent = newCount;
-        if (readEl) readEl.textContent = readCount;
-        if (selectedEl) selectedEl.textContent = selectedCount;
-    }
-
-    function renderQuestions(questions) {
-        const container = document.getElementById('questions-container');
-        if (!container) return;
-        
-        if (!questions || questions.length === 0) {
-            container.innerHTML = `
-                <div class="empty-state">
-                    <i class="fas fa-inbox fa-3x"></i>
-                    <h3>No questions found</h3>
-                    <p>${currentFilter === 'all' ? 'No questions have been submitted yet.' : `No questions with status "${currentFilter}"`}</p>
-                </div>
-            `;
-            return;
-        }
-        
-        container.innerHTML = questions.map(question => {
-            const isNew = question.Status === 'New';
-            const isRead = question.Status === 'Read';
-            const isSelected = question.Status === 'Selected';
-            
-            return `
-                <div class="question-card ${question.Status.toLowerCase()}">
-                    <div class="question-header">
-                        <div class="user-info">
-                            <div class="avatar">${getInitials(question.Name)}</div>
-                            <div class="user-details">
-                                <div class="user-name">${escapeHtml(question.Name)}</div>
-                                <div class="tanzeem">${escapeHtml(question.Tanzeem)}</div>
-                                <div class="timestamp">${formatTimestamp(question.Timestamp)}</div>
-                            </div>
-                        </div>
-                        <span class="status-badge badge-${question.Status.toLowerCase()}">
-                            <i class="fas ${getStatusIcon(question.Status)}"></i> ${question.Status}
-                        </span>
-                    </div>
-                    
-                    <div class="question-content">
-                        ${escapeHtml(question.Question)}
-                    </div>
-                    
-                    <div class="actions">
-                        <button class="action-btn btn-new" onclick="window.updateStatus('${escapeHtml(question.ID)}', 'New')" ${isNew ? 'disabled style="opacity:0.5"' : ''}>
-                            <i class="fas fa-circle"></i> Mark New
-                        </button>
-                        <button class="action-btn btn-read" onclick="window.updateStatus('${escapeHtml(question.ID)}', 'Read')" ${isRead ? 'disabled style="opacity:0.5"' : ''}>
-                            <i class="fas fa-check-circle"></i> Mark Read
-                        </button>
-                        <button class="action-btn btn-selected" onclick="window.updateStatus('${escapeHtml(question.ID)}', 'Selected')" ${isSelected ? 'disabled style="opacity:0.5"' : ''}>
-                            <i class="fas fa-star"></i> Select
-                        </button>
-                    </div>
-                    
-                    <div class="question-id">ID: ${escapeHtml(question.ID)}</div>
-                </div>
-            `;
-        }).join('');
-    }
-
-    function filterQuestions(status, clickedElement = null) {
-        if (!allQuestions) return;
-        
-        currentFilter = status;
-        
-        // Update active button
-        document.querySelectorAll('.filter-btn').forEach(btn => {
-            btn.classList.remove('active');
-        });
-        
-        if (clickedElement) {
-            clickedElement.classList.add('active');
-        } else {
-            const buttonToActivate = document.querySelector(`.filter-btn[data-status="${status}"]`);
-            if (buttonToActivate) buttonToActivate.classList.add('active');
-        }
-        
-        const filteredQuestions = status === 'all' 
-            ? allQuestions 
-            : allQuestions.filter(q => q.Status === status);
-        
-        renderQuestions(filteredQuestions);
-    }
-
-    async function updateStatus(id, status) {
+// Add this function to your existing Apps Script
+function doGet(e) {
   try {
-    const res = await fetch(API_URL, {
-      method: 'POST',
-      // REMOVE the 'mode: 'cors'' line entirely
-      headers: {
-        'Content-Type': 'text/plain;charset=utf-8', // CHANGED from 'application/json'
-      },
-      body: JSON.stringify({ id, status })
-    });
-    // ... rest of your function remains the same
-  } catch (err) {
-    console.error(err);
-    showNotification('❌ Failed to update status');
+    const action = e.parameter.action;
+    
+    if (action === 'sync') {
+      // Handle sync from dashboard
+      const updatesParam = e.parameter.updates;
+      if (updatesParam) {
+        const updates = JSON.parse(updatesParam);
+        return handleSync(updates);
+      }
+      return createResponse({ success: false, message: 'No updates provided' });
+    }
+    
+    // Default: return questions
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    const data = sheet.getDataRange().getValues();
+    
+    if (data.length <= 1) {
+      return createResponse([]);
+    }
+    
+    const headers = data[0];
+    const questions = [];
+    
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      const question = {};
+      
+      for (let j = 0; j < headers.length; j++) {
+        const headerName = headers[j];
+        let value = row[j];
+        
+        if (value === '' || value === null || value === undefined) {
+          if (headerName === 'Status') value = 'New';
+          if (headerName === 'ID') value = 'Q' + (i + 1000);
+          if (headerName === 'Name') value = 'Anonymous';
+          if (headerName === 'Tanzeem') value = 'Not Specified';
+          if (headerName === 'Question') value = '[No question provided]';
+        }
+        
+        question[headerName] = value;
+      }
+      
+      if (!question.ID || question.ID === '') {
+        question.ID = 'Q' + (i + 1000);
+      }
+      
+      if (!question.Status || question.Status === '') {
+        question.Status = 'New';
+      }
+      
+      questions.push(question);
+    }
+    
+    console.log('Returning ' + questions.length + ' questions');
+    return createResponse(questions);
+    
+  } catch (error) {
+    console.error('Error in doGet: ' + error.toString());
+    return createResponse({ error: error.toString() });
   }
 }
-            
-            // Then send to server
-            const response = await fetch(API_URL, {
-                method: 'POST',
-                contentType: 'application/json',
-                body: JSON.stringify({ id, status })
-            });
-            
-            const result = await response.json();
-            console.log('Server response:', result);
-            
-            if (result.success) {
-                showNotification(`✓ Status updated to ${status}`);
-            } else {
-                showNotification(`⚠ ${result.message || 'Update failed'}`);
-            }
-            
-        } catch (error) {
-            console.error('Update error:', error);
-            showNotification('✗ Error updating status');
-        }
+
+function handleSync(updates) {
+  try {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    
+    const idCol = headers.indexOf('ID');
+    const statusCol = headers.indexOf('Status');
+    
+    if (idCol === -1 || statusCol === -1) {
+      return createResponse({ success: false, message: 'ID or Status column not found' });
     }
-
-    function showNotification(message) {
-        const notification = document.createElement('div');
-        notification.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: #10b981;
-            color: white;
-            padding: 15px 25px;
-            border-radius: 5px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            z-index: 1000;
-            animation: slideIn 0.3s ease;
-        `;
-        notification.innerHTML = message;
-        document.body.appendChild(notification);
-        
-        setTimeout(() => {
-            notification.style.animation = 'slideOut 0.3s ease';
-            setTimeout(() => notification.remove(), 300);
-        }, 3000);
+    
+    let updatedCount = 0;
+    
+    for (const update of updates) {
+      for (let i = 1; i < data.length; i++) {
+        if (data[i][idCol] == update.id) {
+          sheet.getRange(i + 1, statusCol + 1).setValue(update.newStatus);
+          updatedCount++;
+          break;
+        }
+      }
     }
+    
+    return HtmlService.createHtmlOutput(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Sync Complete</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 40px; text-align: center; }
+            .success { color: green; font-size: 24px; margin: 20px 0; }
+            .info { color: #666; margin: 20px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="success">✓ Sync Successful!</div>
+          <div class="info">Updated ${updatedCount} questions in Google Sheets.</div>
+          <div class="info">You can close this tab now.</div>
+        </body>
+      </html>
+    `);
+    
+  } catch (error) {
+    console.error('Sync error:', error);
+    return createResponse({ success: false, message: error.toString() });
+  }
+}
 
-    async function loadQuestions() {
-        try {
-            const container = document.getElementById('questions-container');
-            if (container) {
-                container.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading questions...</div>';
-            }
-            
-            console.log('Fetching from:', API_URL);
-            const response = await fetch(API_URL);
-            
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            
-            const questions = await response.json();
-            console.log('Received data:', questions);
-            
-            if (!Array.isArray(questions)) {
-                throw new Error('Server did not return an array');
-            }
-            
-            // Ensure each question has required fields
-            allQuestions = questions.map((q, index) => ({
-                ...q,
-                Status: q.Status || 'New',
-                ID: q.ID || 'Q' + (1000 + index),
-                Tanzeem: q.Tanzeem || 'Not Specified',
-                Name: q.Name || 'Anonymous',
-                Question: q.Question || '[No question provided]'
-            })).reverse();
-            
-            console.log('Processed', allQuestions.length, 'questions');
-            
-            updateStats();
-            filterQuestions('all');
-            
-        } catch (error) {
-            console.error('Load error:', error);
-            const container = document.getElementById('questions-container');
-            if (container) {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <i class="fas fa-exclamation-triangle fa-3x"></i>
-                        <h3>Unable to load questions</h3>
-                        <p>${error.message}</p>
-                        <button onclick="window.loadQuestions()" style="margin-top:20px; padding:10px 20px; background:#667eea; color:white; border:none; border-radius:5px; cursor:pointer;">
-                            <i class="fas fa-redo"></i> Retry
-                        </button>
-                    </div>
-                `;
-            }
-        }
-    }
-
-    function searchQuestions() {
-        const searchInput = document.getElementById('search-input');
-        if (!searchInput || !allQuestions) return;
-        
-        const query = searchInput.value.toLowerCase().trim();
-        
-        if (!query) {
-            filterQuestions(currentFilter);
-            return;
-        }
-        
-        const filtered = allQuestions.filter(q => 
-            (q.Question && q.Question.toLowerCase().includes(query)) ||
-            (q.Name && q.Name.toLowerCase().includes(query)) ||
-            (q.Tanzeem && q.Tanzeem.toLowerCase().includes(query))
-        );
-        
-        renderQuestions(filtered);
-    }
-
-    // ============================================
-    // INITIALIZATION
-    // ============================================
-    document.addEventListener('DOMContentLoaded', function() {
-        console.log('Dashboard initializing...');
-        
-        // Setup filter buttons
-        const filterButtons = document.querySelectorAll('.filter-btn');
-        filterButtons.forEach(button => {
-            button.addEventListener('click', function() {
-                const status = this.getAttribute('data-status');
-                filterQuestions(status, this);
-            });
-        });
-        
-        // Setup refresh button
-        const refreshBtn = document.querySelector('.refresh-btn');
-        if (refreshBtn) {
-            refreshBtn.addEventListener('click', loadQuestions);
-        }
-        
-        // Setup search input
-        const searchInput = document.getElementById('search-input');
-        if (searchInput) {
-            searchInput.addEventListener('keyup', searchQuestions);
-        }
-        
-        // Make functions available globally for inline onclick handlers
-        window.updateStatus = updateStatus;
-        window.loadQuestions = loadQuestions;
-        window.searchQuestions = searchQuestions;
-        
-        // Initial load
-        loadQuestions();
-        
-        // Auto-refresh every 30 seconds
-        setInterval(loadQuestions, 30000);
-    });
-
-    // Add CSS animations
-    const style = document.createElement('style');
-    style.textContent = `
-        @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-        @keyframes slideOut {
-            from { transform: translateX(0); opacity: 1; }
-            to { transform: translateX(100%); opacity: 0; }
-        }
-    `;
-    document.head.appendChild(style);
-</script>
-</body>
-</html>
-
-
-
-
-
-
-
+function createResponse(data) {
+  const output = ContentService.createTextOutput(JSON.stringify(data));
+  output.setMimeType(ContentService.MimeType.JSON);
+  output.setHeaders({
+    'Access-Control-Allow-Origin': '*'
+  });
+  return output;
+}
